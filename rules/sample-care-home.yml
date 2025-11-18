@@ -1,0 +1,227 @@
+# 介護施設リスク評価ルールセット
+name: "care-home-risk-v1"
+version: "1.0.0"
+description: "介護・医療施設向けリスク評価ルールセット"
+
+# リスクランク閾値（総合スコア）
+rankThresholds:
+  A: 20    # 0-20: 優良
+  B: 40    # 21-40: 良好
+  C: 60    # 41-60: 標準
+  D: 80    # 61-80: 要注意
+  # 81以上: E (危険)
+
+# リスク評価ルール
+riskRules:
+  # カテゴリ: 入居者リスク
+  - name: "高齢入居者比率"
+    category: "入居者"
+    description: "平均年齢が85歳以上の場合のリスク"
+    conditions:
+      - field: "residents.averageAge"
+        operator: "gte"
+        value: 85
+    score: 5
+    weight: 1.2
+
+  - name: "重度者高比率"
+    category: "入居者"
+    description: "要介護4-5の割合が50%以上"
+    conditions:
+      - field: "computed.severeRate"
+        operator: "gte"
+        value: 50
+    score: 8
+    weight: 1.5
+
+  - name: "認知症患者高比率"
+    category: "入居者"
+    description: "認知症患者が60%以上"
+    conditions:
+      - field: "computed.dementiaRate"
+        operator: "gte"
+        value: 60
+    score: 7
+    weight: 1.3
+
+  - name: "医療的ケア必要者多数"
+    category: "入居者"
+    description: "医療的ケアが必要な入居者が20名以上"
+    conditions:
+      - field: "residents.medicalCare"
+        operator: "gte"
+        value: 20
+    score: 6
+    weight: 1.4
+
+  # カテゴリ: 人員配置リスク
+  - name: "人員配置基準ギリギリ"
+    category: "人員配置"
+    description: "入居者:職員比率が3:1を超える"
+    conditions:
+      - field: "staffing.residentToStaffRatio"
+        operator: "gt"
+        value: 3.0
+    score: 10
+    weight: 2.0
+
+  - name: "看護職員不足"
+    category: "人員配置"
+    description: "看護職員が2名未満"
+    conditions:
+      - field: "staffing.nurses"
+        operator: "lt"
+        value: 2
+    score: 8
+    weight: 1.5
+
+  - name: "夜勤体制薄弱"
+    category: "人員配置"
+    description: "夜勤職員が2名未満"
+    conditions:
+      - field: "staffing.nightShiftStaff"
+        operator: "lt"
+        value: 2
+    score: 9
+    weight: 1.8
+
+  # カテゴリ: 施設設備リスク
+  - name: "スプリンクラー未設置"
+    category: "施設設備"
+    description: "スプリンクラーが設置されていない"
+    conditions:
+      - field: "facilities.sprinkler"
+        operator: "eq"
+        value: false
+    score: 12
+    weight: 2.5
+
+  - name: "火災報知設備なし"
+    category: "施設設備"
+    description: "自動火災報知設備がない"
+    conditions:
+      - field: "facilities.fireAlarm"
+        operator: "eq"
+        value: false
+    score: 10
+    weight: 2.0
+
+  - name: "バリアフリー未対応"
+    category: "施設設備"
+    description: "バリアフリー対応が不十分"
+    conditions:
+      - field: "facilities.barrierFree"
+        operator: "eq"
+        value: false
+    score: 5
+    weight: 1.0
+
+  # カテゴリ: 事故・インシデント履歴
+  - name: "転倒事故多発"
+    category: "事故履歴"
+    description: "過去1年間の転倒事故が10件以上"
+    conditions:
+      - field: "incidents.falls"
+        operator: "gte"
+        value: 10
+    score: 8
+    weight: 1.5
+
+  - name: "誤嚥事故発生"
+    category: "事故履歴"
+    description: "過去1年間に誤嚥事故が発生"
+    conditions:
+      - field: "incidents.aspiration"
+        operator: "gte"
+        value: 1
+    score: 10
+    weight: 2.0
+
+  - name: "感染症発生"
+    category: "事故履歴"
+    description: "過去1年間に集団感染が発生"
+    conditions:
+      - field: "incidents.infection"
+        operator: "gte"
+        value: 5
+    score: 7
+    weight: 1.5
+
+  - name: "離設事故発生"
+    category: "事故履歴"
+    description: "過去1年間に離設事故が3件以上"
+    conditions:
+      - field: "incidents.wandering"
+        operator: "gte"
+        value: 3
+    score: 6
+    weight: 1.3
+
+# 保険プラン推奨ルール
+planRules:
+  - id: "plan-premium-plus"
+    name: "プレミアムプラス"
+    description: "最高水準の補償を提供する総合プラン"
+    priority: 1
+    conditions:
+      minScore: 61
+    reasonTemplate: "リスクスコアが{{score}}点（ランク{{rank}}）のため、手厚い補償が必要です。"
+
+  - id: "plan-standard-plus"
+    name: "スタンダードプラス"
+    description: "充実した補償内容の標準プラン"
+    priority: 2
+    conditions:
+      minScore: 41
+      maxScore: 60
+    reasonTemplate: "リスクスコアが{{score}}点（ランク{{rank}}）のため、バランスの取れた補償をお勧めします。"
+
+  - id: "plan-basic"
+    name: "ベーシック"
+    description: "基本的な補償を提供するプラン"
+    priority: 3
+    conditions:
+      maxScore: 40
+    reasonTemplate: "リスクスコアが{{score}}点（ランク{{rank}}）と良好なため、基本プランで十分です。"
+
+  - id: "plan-fire-safety"
+    name: "火災安全特化プラン"
+    description: "火災リスクに特化した補償プラン"
+    priority: 2
+    conditions:
+      custom:
+        - field: "facilities.sprinkler"
+          operator: "eq"
+          value: false
+    reasonTemplate: "防火設備に課題があるため、火災リスクへの備えを強化することをお勧めします。"
+
+  - id: "plan-medical-care"
+    name: "医療ケア特化プラン"
+    description: "医療的ケアに特化した補償プラン"
+    priority: 2
+    conditions:
+      custom:
+        - field: "residents.medicalCare"
+          operator: "gte"
+          value: 15
+    reasonTemplate: "医療的ケアが必要な入居者が多いため、医療リスクへの対応を強化することをお勧めします。"
+
+# 改善推奨ルール
+improvementRules:
+  - condition:
+      - field: "staffing.residentToStaffRatio"
+        operator: "gt"
+        value: 3.0
+    message: "職員配置基準の改善を検討してください"
+
+  - condition:
+      - field: "facilities.sprinkler"
+        operator: "eq"
+        value: false
+    message: "スプリンクラー設備の設置を強く推奨します"
+
+  - condition:
+      - field: "incidents.falls"
+        operator: "gte"
+        value: 10
+    message: "転倒防止対策の強化が必要です"

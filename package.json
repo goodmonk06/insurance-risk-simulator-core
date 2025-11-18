@@ -1,0 +1,33 @@
+{
+  "name": "insurance-risk-simulator-core",
+  "version": "1.0.0",
+  "description": "介護・医療領域のリスクシミュレータ",
+  "main": "dist/index.js",
+  "bin": {
+    "risk-sim": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "start": "node dist/cli.js",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "insurance",
+    "risk",
+    "simulator",
+    "actuarial"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "js-yaml": "^4.1.0"
+  }
+}

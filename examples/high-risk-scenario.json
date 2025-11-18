@@ -1,0 +1,38 @@
+{
+  "facility": {
+    "name": "ひまわり介護ホーム",
+    "type": "有料老人ホーム",
+    "capacity": 50
+  },
+  "residents": {
+    "total": 48,
+    "averageAge": 88,
+    "careLevel": {
+      "level1": 2,
+      "level2": 5,
+      "level3": 8,
+      "level4": 18,
+      "level5": 15
+    },
+    "dementia": 35,
+    "medicalCare": 22
+  },
+  "staffing": {
+    "careWorkers": 14,
+    "nurses": 1,
+    "residentToStaffRatio": 3.4,
+    "nightShiftStaff": 1
+  },
+  "facilities": {
+    "sprinkler": false,
+    "fireAlarm": true,
+    "barrierFree": false,
+    "medicalEquipment": ["AED"]
+  },
+  "incidents": {
+    "falls": 15,
+    "aspiration": 2,
+    "infection": 8,
+    "wandering": 5
+  }
+}
