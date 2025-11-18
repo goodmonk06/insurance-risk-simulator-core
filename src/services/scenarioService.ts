@@ -6,12 +6,19 @@ import { prisma } from '../utils/db';
 import { ApiError } from '../utils/apiResponse';
 import { CreateScenarioInput, UpdateScenarioInput, PaginationInput } from '../validation/schemas';
 
+// TODO: Replace with actual auth context in Phase 3+
+const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
+const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
 export class ScenarioService {
-  async create(input: CreateScenarioInput) {
+  async create(input: CreateScenarioInput, organizationId: string = DEFAULT_ORG_ID, createdById: string = DEFAULT_USER_ID) {
     return await prisma.scenario.create({
       data: {
         name: input.name,
         data: input.data as any,
+        organizationId,
+        createdById,
+        status: 'ACTIVE',
       },
     });
   }

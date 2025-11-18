@@ -1,4 +1,4 @@
-// Prisma schema for Insurance Risk Simulator
+// Prisma schema for Insurance Risk Simulator - Phase 3
 
 generator client {
   provider = "prisma-client-js"
@@ -9,16 +9,97 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Scenario {
-  id        String   @id @default(uuid())
-  name      String
-  data      Json     // CareHomeScenario as JSON
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ===== User & Organization Management =====
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  settings    Json?    // Organization-level configuration
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  assessments Assessment[]
+  users      User[]
+  scenarios  Scenario[]
+  templates  Template[]
+  reports    Report[]
+  alerts     Alert[]
+  auditLogs  AuditLog[]
 
+  @@index([slug])
+  @@index([active])
+  @@map("organizations")
+}
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  VIEWER
+  AUDITOR
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  role           UserRole  @default(VIEWER)
+  passwordHash   String?   // Optional for OAuth users
+  emailVerified  Boolean   @default(false)
+  active         Boolean   @default(true)
+  preferences    Json?     // User preferences and settings
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organizationId String
+
+  // Relations
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scenarios       Scenario[]
+  assessments     Assessment[]
+  reports         Report[]
+  alerts          Alert[]
+  auditLogsActor  AuditLog[]    @relation("AuditLogActor")
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ===== Core Domain Entities (Enhanced) =====
+
+enum ScenarioStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Scenario {
+  id             String         @id @default(uuid())
+  name           String
+  description    String?
+  status         ScenarioStatus @default(ACTIVE)
+  data           Json           // CareHomeScenario as JSON
+  metadata       Json?          // Additional metadata
+  organizationId String
+  createdById    String
+  templateId     String?        // If created from template
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  template     Template?     @relation(fields: [templateId], references: [id])
+  assessments  Assessment[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([templateId])
+  @@index([status])
   @@index([createdAt])
   @@map("scenarios")
 }
@@ -31,12 +112,19 @@ model Assessment {
   totalScore     Float
   rank           String
   result         Json     // Full RiskAssessmentResult as JSON
+  executedById   String
+  executionTime  Int?     // Milliseconds
   createdAt      DateTime @default(now())
 
   // Relations
-  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenario     Scenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  executedBy   User      @relation(fields: [executedById], references: [id])
+  reports      Report[]
+  alerts       Alert[]
 
   @@index([scenarioId])
+  @@index([executedById])
+  @@index([rank])
   @@index([createdAt])
   @@map("assessments")
 }
@@ -54,4 +142,216 @@ model RuleSet {
   @@index([name])
   @@index([active])
   @@map("rule_sets")
+}
+
+// ===== Templates =====
+
+enum TemplateCategory {
+  NURSING_HOME
+  ASSISTED_LIVING
+  HOSPICE
+  REHABILITATION
+  MEMORY_CARE
+  GROUP_HOME
+  OTHER
+}
+
+model Template {
+  id             String           @id @default(uuid())
+  name           String
+  category       TemplateCategory
+  description    String?
+  data           Json             // Template scenario data
+  isPublic       Boolean          @default(false)
+  usageCount     Int              @default(0)
+  organizationId String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scenarios    Scenario[]
+
+  @@index([organizationId])
+  @@index([category])
+  @@index([isPublic])
+  @@map("templates")
+}
+
+// ===== Reports =====
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+  JSON
+}
+
+model Report {
+  id             String       @id @default(uuid())
+  name           String
+  assessmentId   String
+  format         ReportFormat
+  status         ReportStatus @default(PENDING)
+  fileUrl        String?      // Storage URL
+  fileSize       Int?         // Bytes
+  parameters     Json?        // Report parameters/config
+  error          String?      // Error message if failed
+  organizationId String
+  createdById    String
+  generatedAt    DateTime?
+  expiresAt      DateTime?    // For temporary storage
+  createdAt      DateTime     @default(now())
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment   Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([assessmentId])
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+// ===== Alerts & Notifications =====
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  EXPIRED
+}
+
+enum AlertChannel {
+  EMAIL
+  WEBHOOK
+  SLACK
+  IN_APP
+  SMS
+}
+
+model Alert {
+  id             String        @id @default(uuid())
+  title          String
+  message        String
+  severity       AlertSeverity
+  status         AlertStatus   @default(ACTIVE)
+  channels       AlertChannel[]
+  assessmentId   String?
+  organizationId String
+  triggeredById  String
+  acknowledgedById String?
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  expiresAt      DateTime?
+  metadata       Json?         // Additional context
+  createdAt      DateTime      @default(now())
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     Assessment?  @relation(fields: [assessmentId], references: [id])
+  triggeredBy    User         @relation(fields: [triggeredById], references: [id])
+
+  @@index([organizationId])
+  @@index([assessmentId])
+  @@index([triggeredById])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ===== Audit Logs =====
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  VIEW
+  EXPORT
+  ASSESS
+  LOGIN
+  LOGOUT
+}
+
+model AuditLog {
+  id             String      @id @default(uuid())
+  action         AuditAction
+  entityType     String      // e.g. "Scenario", "Assessment", "User"
+  entityId       String?
+  changes        Json?       // Before/after for updates
+  metadata       Json?       // Additional context
+  ipAddress      String?
+  userAgent      String?
+  organizationId String
+  actorId        String
+  createdAt      DateTime    @default(now())
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User         @relation("AuditLogActor", fields: [actorId], references: [id])
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ===== Tags =====
+
+model Tag {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String
+  color       String?  // Hex color
+  description String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  relations TagRelation[]
+
+  @@unique([slug])
+  @@index([name])
+  @@map("tags")
+}
+
+enum TaggableType {
+  SCENARIO
+  TEMPLATE
+  REPORT
+}
+
+model TagRelation {
+  id           String       @id @default(uuid())
+  tagId        String
+  taggableType TaggableType
+  taggableId   String       // Polymorphic relation (stores UUID as string)
+  createdAt    DateTime     @default(now())
+
+  // Relations
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, taggableType, taggableId])
+  @@index([tagId])
+  @@index([taggableType, taggableId])
+  @@map("tag_relations")
 }

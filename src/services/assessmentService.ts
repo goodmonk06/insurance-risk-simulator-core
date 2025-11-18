@@ -9,8 +9,13 @@ import { normalizeScenario } from '../models/scenario';
 import { loadRulesFromFile } from '../engine/ruleLoader';
 import * as path from 'path';
 
+// TODO: Replace with actual auth context in Phase 3+
+const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
 export class AssessmentService {
-  async assessScenario(scenarioId: string, ruleSetPath?: string) {
+  async assessScenario(scenarioId: string, ruleSetPath?: string, executedById: string = DEFAULT_USER_ID) {
+    const startTime = Date.now();
+
     // Find scenario
     const scenario = await prisma.scenario.findUnique({
       where: { id: scenarioId },
@@ -30,6 +35,8 @@ export class AssessmentService {
     // Calculate risk
     const result = calculateRisk(normalizedScenario, ruleSet);
 
+    const executionTime = Date.now() - startTime;
+
     // Save assessment
     const assessment = await prisma.assessment.create({
       data: {
@@ -39,6 +46,8 @@ export class AssessmentService {
         totalScore: result.totalScore,
         rank: result.rank,
         result: result as any,
+        executedById,
+        executionTime,
       },
     });
 
