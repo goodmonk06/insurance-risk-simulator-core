@@ -1,0 +1,57 @@
+// Prisma schema for Insurance Risk Simulator
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Scenario {
+  id        String   @id @default(uuid())
+  name      String
+  data      Json     // CareHomeScenario as JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  assessments Assessment[]
+
+  @@index([createdAt])
+  @@map("scenarios")
+}
+
+model Assessment {
+  id             String   @id @default(uuid())
+  scenarioId     String
+  ruleSetName    String
+  ruleSetVersion String
+  totalScore     Float
+  rank           String
+  result         Json     // Full RiskAssessmentResult as JSON
+  createdAt      DateTime @default(now())
+
+  // Relations
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioId])
+  @@index([createdAt])
+  @@map("assessments")
+}
+
+model RuleSet {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  version     String
+  description String?
+  rules       Json     // Full RuleSet as JSON
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([active])
+  @@map("rule_sets")
+}

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: insurance-risk-simulator-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: insurance_risk_simulator
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: insurance-risk-simulator-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/insurance_risk_simulator?schema=public
+      PORT: 3000
+      NODE_ENV: production
+      API_PREFIX: /api
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./rules:/app/rules:ro
+    command: sh -c "npx prisma db push && node dist/server.js"
+
+volumes:
+  postgres_data:
